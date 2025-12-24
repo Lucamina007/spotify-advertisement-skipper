@@ -1,3 +1,6 @@
-psutil
-pygetwindow
-keyboard
+ time
+ psutil
+ subprocess
+ os
+ keyboard
+ asyncio

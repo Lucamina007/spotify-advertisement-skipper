@@ -1,105 +1,82 @@
 import time
 import psutil
 import subprocess
-import pygetwindow as gw
-import keyboard
 import os
-import threading
-import signal
-import sys
+import keyboard
+import asyncio
 
-CHECK_INTERVAL = 5
+# Attempt to import WinRT, with a fallback flag
+try:
+    from winrt.windows.media.control import GlobalSystemMediaTransportControlsSessionManager as SessionManager
+    WINRT_AVAILABLE = True
+except ImportError:
+    WINRT_AVAILABLE = False
+    print("Warning: WinRT modules not found. Falling back to window title detection.")
 
-SPOTIFY_PATH = os.path.expandvars(
-    r"C:\Users\%USERNAME%\AppData\Roaming\Spotify\Spotify.exe"
-)
+# Configuration
+CHECK_INTERVAL = 2 
+RESTART_COOLDOWN = 20  # Safe buffer for 2025 Spotify updates
+SPOTIFY_PATH = os.path.expandvars(r"C:\Users\%USERNAME%\AppData\Roaming\Spotify\Spotify.exe")
 
-STOP_EVENT = threading.Event()
+async def is_ad_playing():
+    """Detects ads using Media Session (Primary) or Window Titles (Fallback)."""
+    if WINRT_AVAILABLE:
+        try:
+            manager = await SessionManager.request_async()
+            sessions = manager.get_sessions()
+            for session in sessions:
+                if "spotify" in session.source_app_user_model_id.lower():
+                    info = await session.try_get_media_properties_async()
+                    # 2025 Detection: Ads have empty artists or specific titles
+                    if not info.artist or info.title.lower() in ["advertisement", "spotify", "sponsored"]:
+                        return True
+        except Exception:
+            pass # Fallback to window check if API glitche
 
-
-def is_spotify_running():
-    for p in psutil.process_iter(['name']):
-        if p.info['name'] and 'spotify' in p.info['name'].lower():
+    # Fallback/Safety: Basic window check but with strict "No Artist" logic
+    import pygetwindow as gw
+    for window in gw.getWindowsWithTitle('Spotify'):
+        if window.title.lower() == "advertisement":
             return True
     return False
 
-
-def close_spotify():
+def kill_spotify():
     for p in psutil.process_iter(['name']):
-        if p.info['name'] and 'spotify' in p.info['name'].lower():
-            try:
-                p.terminate()
-            except Exception:
-                pass
-
+        try:
+            if p.info['name'] and 'spotify' in p.info['name'].lower():
+                p.kill()
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
 
 def open_spotify():
     if os.path.isfile(SPOTIFY_PATH):
-        subprocess.Popen(SPOTIFY_PATH)
+        subprocess.Popen([SPOTIFY_PATH], creationflags=subprocess.DETACHED_PROCESS)
     else:
         os.startfile("spotify:")
 
-
-def spotify_ad_playing():
-    keywords = ("advertisement", "spotify free", "sponsored", "ad:")
-    try:
-        titles = gw.getAllTitles()
-    except Exception:
-        return False
-
-    for t in titles:
-        if not t:
-            continue
-        t = t.lower()
-        if any(k in t for k in keywords):
-            return True
-    return False
-
-
-def press_play():
-    time.sleep(4)
-    try:
-        keyboard.send("play/pause media")
-    except Exception:
-        pass
-
-
-def watcher():
-    print("Spotify watcher running (headless)")
-    spotify_seen = False
-
-    while not STOP_EVENT.is_set():
-        try:
-            if is_spotify_running():
-                spotify_seen = True
-                if spotify_ad_playing():
-                    print("Ad detected → restarting Spotify")
-                    close_spotify()
-                    time.sleep(3)
-                    open_spotify()
-                    press_play()
-            else:
-                spotify_seen = False
-
-            time.sleep(CHECK_INTERVAL)
-        except Exception as e:
-            print("Error:", e)
-            time.sleep(CHECK_INTERVAL)
-
-
-def shutdown_handler(sig, frame):
-    STOP_EVENT.set()
-    sys.exit(0)
-
-def main():
+async def main():
+    print("--- Spotify Ad-Skipper (2025 Multi-Engine) ---")
     while True:
         try:
-            watcher()
-        except Exception as e:
-            with open("sopty_error.log", "a") as f:
-                f.write(str(e) + "\n")
-            time.sleep(5)  # prevent restart storm
+            if await is_ad_playing():
+                print("Ad Detected! Restarting...")
+                kill_spotify()
+                time.sleep(2)
+                open_spotify()
+                
+                time.sleep(8) # Wait for Spotify 2025 UI to load
+                keyboard.send("play/pause media")
+                # To skip to the next track automatically after restarting
+                keyboard.send("next track")
 
+                
+                print(f"Cooldown: {RESTART_COOLDOWN}s")
+                await asyncio.sleep(RESTART_COOLDOWN)
+            
+            await asyncio.sleep(CHECK_INTERVAL)
+        except Exception as e:
+            await asyncio.sleep(CHECK_INTERVAL)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
+

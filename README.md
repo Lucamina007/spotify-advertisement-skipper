@@ -1,5 +1,5 @@
 # Spotify Ad Watcher - Widget
-
+This program works sometimes I need to improve the code because sometimes when spotify get closed and it reopens after a few seconds it gets shut down again
 This is a small GUI wrapper around the Spotify ad watcher that can be packaged into a standalone Windows executable so users don't need a separate Python install.
 
 How to build a single-file exe (Windows):
@@ -27,3 +27,4 @@ If you want, I can also:
 - Add an installer (NSIS) to create Start Menu shortcuts.
 - Add a tray icon using `pystray` and `Pillow`.
 - Create a pre-built exe for you (I can generate instructions and a build script you can run locally).
+

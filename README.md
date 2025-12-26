@@ -21,7 +21,9 @@ pyinstaller --onefile --noconsole --name SpotifyAdWatcher sopty_gui.py
 Notes:
 - The app uses OS window titles to detect ads; this may not catch every ad case.
 - Running media-key emulation (`keyboard`) may require accessibility permissions.
+- Test the exe locally before distributing.
 
-
-You can add the .exe file inside the folder that automatically starts the programs on the computer starts so you will never have to worry to start it
-
+If you want, I can also:
+- Add an installer (NSIS) to create Start Menu shortcuts.
+- Add a tray icon using `pystray` and `Pillow`.
+- Create a pre-built exe for you (I can generate instructions and a build script you can run locally).
